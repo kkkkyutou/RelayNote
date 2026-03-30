@@ -245,6 +245,11 @@ RelayNote 会保存：
 
 v0.1 之后最值得做的是只读 API 和最小手机 reader，这样像 TouchMux 这样的工具就可以直接消费 RelayNote 的输出，而不需要自己解析内部文件。
 
+更多说明：
+
+- [技术架构](./docs/architecture.md)
+- [Roadmap](./docs/roadmap.md)
+
 ## License
 
 MIT

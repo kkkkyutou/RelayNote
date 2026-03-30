@@ -254,6 +254,11 @@ The next valuable step is a read-only API and a minimal mobile reader, so tools
 such as TouchMux can consume RelayNote output without parsing internal files
 directly.
 
+See also:
+
+- [Architecture](./docs/architecture.md)
+- [Roadmap](./docs/roadmap.md)
+
 ## License
 
 MIT
