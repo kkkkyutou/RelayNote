@@ -7,9 +7,11 @@ export function renderMarkdown(note: HandoverNote): string {
     `- Goal: ${note.goal}`,
     `- Status: ${note.status}`,
     `- Runtime: ${note.runtime}`,
+    `- Source: ${note.source}${note.sourceRef ? ` (${note.sourceRef})` : ""}`,
     `- Working directory: ${note.workingDirectory}`,
     `- Started: ${note.startedAt}`,
     `- Updated: ${note.updatedAt}`,
+    `- Last activity: ${note.lastActivityAt}`,
     "",
     "## Summary",
     "",
@@ -33,6 +35,25 @@ export function renderMarkdown(note: HandoverNote): string {
   } else {
     for (const file of note.touchedFiles) {
       lines.push(`- ${file}`);
+    }
+  }
+
+  lines.push("", "## Git Diff", "");
+  if (!note.diffStat) {
+    lines.push("- None");
+  } else {
+    lines.push(`- ${note.diffStat.summaryLine}`);
+  }
+
+  lines.push("", "## Checks", "");
+  if (note.checks.length === 0) {
+    lines.push("- None");
+  } else {
+    for (const check of note.checks) {
+      const detail = [check.command, check.exitCode === undefined ? undefined : `exit ${check.exitCode}`]
+        .filter(Boolean)
+        .join(" | ");
+      lines.push(`- ${check.ts}: ${check.name} - ${check.status}${detail ? ` - ${detail}` : ""}`);
     }
   }
 

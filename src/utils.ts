@@ -8,6 +8,13 @@ export function sanitizeSessionId(input: string): string {
   return input.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "session";
 }
 
+export function assertSafeSessionId(sessionId: string): string {
+  if (!/^[a-zA-Z0-9._-]+$/.test(sessionId)) {
+    throw new Error(`unsafe session id: ${sessionId}`);
+  }
+  return sessionId;
+}
+
 export function defaultSessionId(prefix: string): string {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   return sanitizeSessionId(`${prefix}-${stamp}`);

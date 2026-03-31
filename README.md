@@ -127,6 +127,7 @@ transcript.
 
 - Watch an existing `tmux` session and refresh handover artifacts continuously
 - Wrap a command and capture output, exit status, and note state
+- Run named validation checks against an existing session
 - Track session status as:
   - `running`
   - `waiting_for_human`
@@ -136,8 +137,17 @@ transcript.
   - `completed`
   - `abandoned`
 - Attach manual annotations such as `blocker`, `note`, and `handoff`
-- Capture touched files from git when available
+- Capture touched files and git diff summaries when available
+- Record named validation checks such as `test`, `build`, or `lint`
 - Export both JSON and Markdown handover views
+
+## Stage Status
+
+- Stage 1: Core handover contracts, status inference, validation evidence, and
+  baseline filesystem safety are implemented.
+- Stage 2: local-first CLI and TUI improvements are next.
+- Stage 3: stronger integration surfaces and TouchMux-oriented contracts come
+  after that.
 
 ## Quick Start
 
@@ -204,6 +214,15 @@ node dist/cli.js resume run-2026-03-31T00-00-00-000Z
 node dist/cli.js annotate run-2026-03-31T00-00-00-000Z \
   --type blocker \
   --text "Need a human review before merge"
+```
+
+### Attach a named validation check to an existing session
+
+```bash
+node dist/cli.js check run-2026-03-31T00-00-00-000Z \
+  --name test \
+  --cwd /path/to/repo \
+  -- bash -lc "npm test"
 ```
 
 ### Start the built-in API and mobile reader
@@ -294,6 +313,8 @@ directly.
 See also:
 
 - [Architecture](./docs/architecture.md)
+- [Contracts](./docs/contracts.md)
+- [Security Notes](./docs/security.md)
 - [Roadmap](./docs/roadmap.md)
 
 ## License

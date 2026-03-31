@@ -1,15 +1,17 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type {
+  GitDiffSummary,
   HandoverNote,
   RelayEvent,
   ResumePacket,
   SessionMetadata,
   SessionSnapshot,
 } from "./types.js";
+import { assertSafeSessionId } from "./utils.js";
 
 function sessionDir(dataRoot: string, sessionId: string): string {
-  return path.join(dataRoot, "sessions", sessionId);
+  return path.join(dataRoot, "sessions", assertSafeSessionId(sessionId));
 }
 
 export async function ensureSessionDir(dataRoot: string, sessionId: string): Promise<string> {
@@ -117,11 +119,16 @@ export async function listSessionSnapshots(dataRoot: string): Promise<SessionSna
           goal: note.goal,
           status: note.status,
           runtime: metadata.runtime,
+          source: metadata.source,
+          sourceRef: metadata.sourceRef,
+          createdAt: metadata.createdAt,
           updatedAt: note.updatedAt,
+          lastActivityAt: note.lastActivityAt,
           workingDirectory: note.workingDirectory,
           summary: note.summary,
           touchedFilesCount: note.touchedFiles.length,
           blockersCount: note.blockers.length,
+          checksCount: note.checks.length,
         };
         return snapshot;
       } catch {
@@ -132,5 +139,29 @@ export async function listSessionSnapshots(dataRoot: string): Promise<SessionSna
 
   return snapshots
     .filter((item): item is SessionSnapshot => item !== null)
-    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    .sort((left, right) => right.lastActivityAt.localeCompare(left.lastActivityAt));
+}
+
+export async function readPreviousStatus(
+  dataRoot: string,
+  sessionId: string,
+): Promise<string | undefined> {
+  try {
+    const note = await readNote(dataRoot, sessionId);
+    return note.status;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function readCurrentDiffStat(
+  dataRoot: string,
+  sessionId: string,
+): Promise<GitDiffSummary | undefined> {
+  try {
+    const note = await readNote(dataRoot, sessionId);
+    return note.diffStat;
+  } catch {
+    return undefined;
+  }
 }

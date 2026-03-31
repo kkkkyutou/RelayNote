@@ -1,5 +1,5 @@
 import path from "node:path";
-import { gitChangedFiles } from "./git.js";
+import { gitSnapshot } from "./git.js";
 import { reduceSession } from "./reducer.js";
 import { renderMarkdown } from "./render.js";
 import {
@@ -53,8 +53,13 @@ export async function refreshArtifacts(dataRoot: string, sessionId: string): Pro
   };
   await writeMetadata(dataRoot, updatedMetadata);
   const events = await readEvents(dataRoot, sessionId).catch(() => []);
-  const changedFiles = await gitChangedFiles(updatedMetadata.workingDirectory);
-  const { note, resumePacket } = reduceSession(updatedMetadata, events, changedFiles);
+  const git = await gitSnapshot(updatedMetadata.workingDirectory);
+  const { note, resumePacket } = reduceSession({
+    metadata: updatedMetadata,
+    events,
+    changedFiles: git.changedFiles,
+    diffStat: git.diffStat,
+  });
   const markdown = renderMarkdown(note);
   await writeNote(dataRoot, note, markdown);
   await writeResumePacket(dataRoot, sessionId, resumePacket);

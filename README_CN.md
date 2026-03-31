@@ -119,6 +119,7 @@ RelayNote 会为每个 session 生成一组固定产物：
 
 - 监听已有 `tmux` session，并持续刷新交接产物
 - 包装一个命令运行，记录输出、退出码和当前状态
+- 对已有 session 附加命名 validation check
 - 用状态机表示会话状态：
   - `running`
   - `waiting_for_human`
@@ -128,8 +129,15 @@ RelayNote 会为每个 session 生成一组固定产物：
   - `completed`
   - `abandoned`
 - 支持人工加注释，例如 `blocker`、`note`、`handoff`
-- 在 git 可用时记录改动文件
+- 在 git 可用时记录改动文件和 diff 摘要
+- 记录命名 validation checks，例如 `test`、`build`、`lint`
 - 同时导出 JSON 和 Markdown 两种交接视图
+
+## 阶段状态
+
+- 阶段一：核心 handover contract、状态推断、validation evidence，以及基础文件系统安全边界已经完成。
+- 阶段二：接下来会补本地优先的 CLI / TUI 使用体验。
+- 阶段三：再继续把集成接口和 TouchMux 接入面做稳。
 
 ## 快速开始
 
@@ -196,6 +204,15 @@ node dist/cli.js resume run-2026-03-31T00-00-00-000Z
 node dist/cli.js annotate run-2026-03-31T00-00-00-000Z \
   --type blocker \
   --text "Need a human review before merge"
+```
+
+### 给已有 session 附加一个命名 validation check
+
+```bash
+node dist/cli.js check run-2026-03-31T00-00-00-000Z \
+  --name test \
+  --cwd /path/to/repo \
+  -- bash -lc "npm test"
 ```
 
 ### 启动内置 API 和手机 Reader
@@ -284,6 +301,8 @@ v0.1 之后最值得做的是只读 API 和最小手机 reader，这样像 Touch
 更多说明：
 
 - [技术架构](./docs/architecture.md)
+- [Contracts](./docs/contracts.md)
+- [安全说明](./docs/security.md)
 - [Roadmap](./docs/roadmap.md)
 
 ## License

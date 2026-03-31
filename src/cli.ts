@@ -4,7 +4,7 @@ import process from "node:process";
 import { readFile } from "node:fs/promises";
 import { readNote, readNoteMarkdown, readResumePacket } from "./storage.js";
 import { deriveWorkingDirectory, emitEvent } from "./session.js";
-import { runCommandWithRelayNote } from "./run.js";
+import { runCommandWithRelayNote, runValidationCheck } from "./run.js";
 import { startServer } from "./server.js";
 import { watchTmuxSession } from "./watch.js";
 import { resolveDataRoot } from "./utils.js";
@@ -70,6 +70,7 @@ Usage:
   relaynote note show <session-id> [--json] [--data-root <dir>]
   relaynote note export <session-id> --format json|md [--output <file>] [--data-root <dir>]
   relaynote resume <session-id> [--data-root <dir>]
+  relaynote check <session-id> --name <check-name> [--cwd <dir>] [--data-root <dir>] -- <command...>
   relaynote annotate <session-id> --type blocker|note|handoff --text <text> [--data-root <dir>]
   relaynote serve [--host <host>] [--port <port>] [--data-root <dir>]
 `);
@@ -144,6 +145,17 @@ async function main(): Promise<void> {
     const packet = await readResumePacket(dataRoot, subcommand);
     console.log(JSON.stringify(packet, null, 2));
     return;
+  }
+
+  if (command === "check" && subcommand) {
+    const exitCode = await runValidationCheck({
+      dataRoot,
+      sessionId: subcommand,
+      name: getRequiredFlag(parsed, "name"),
+      workingDirectory: deriveWorkingDirectory(cwd, getOptionalFlag(parsed, "cwd")),
+      command: parsed.commandAfterDoubleDash,
+    });
+    process.exit(exitCode);
   }
 
   if (command === "annotate" && subcommand) {

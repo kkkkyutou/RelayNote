@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { listSessionSnapshots, writeMetadata, writeNote } from "../storage.js";
+import { listSessionSnapshots, readNote, writeMetadata, writeNote } from "../storage.js";
 import type { HandoverNote, SessionMetadata } from "../types.js";
 
 test("listSessionSnapshots returns newest sessions first", async () => {
@@ -21,14 +21,18 @@ test("listSessionSnapshots returns newest sessions first", async () => {
   const noteA: HandoverNote = {
     sessionId: "a",
     runtime: "process",
+    source: "run",
+    sourceRef: "older",
     goal: "Older goal",
     status: "completed",
     startedAt: metadataA.createdAt,
     updatedAt: "2026-03-31T00:01:00.000Z",
+    lastActivityAt: "2026-03-31T00:01:00.000Z",
     workingDirectory: "/tmp/a",
     summary: "older",
     recentActions: [],
     touchedFiles: [],
+    checks: [],
     evidence: [],
     blockers: [],
     nextActions: [],
@@ -48,14 +52,18 @@ test("listSessionSnapshots returns newest sessions first", async () => {
   const noteB: HandoverNote = {
     sessionId: "b",
     runtime: "tmux",
+    source: "tmux",
+    sourceRef: "tmux:b",
     goal: "Newer goal",
     status: "ready_to_resume",
     startedAt: metadataB.createdAt,
     updatedAt: "2026-03-31T00:02:00.000Z",
+    lastActivityAt: "2026-03-31T00:02:00.000Z",
     workingDirectory: "/tmp/b",
     summary: "newer",
     recentActions: [],
     touchedFiles: ["x.ts"],
+    checks: [],
     evidence: [],
     blockers: [{ ts: "2026-03-31T00:02:00.000Z", label: "Need review" }],
     nextActions: [],
@@ -72,5 +80,11 @@ test("listSessionSnapshots returns newest sessions first", async () => {
   assert.equal(snapshots.length, 2);
   assert.equal(snapshots[0].sessionId, "b");
   assert.equal(snapshots[0].blockersCount, 1);
+  assert.equal(snapshots[0].source, "tmux");
   assert.equal(snapshots[1].sessionId, "a");
+});
+
+test("readNote rejects unsafe session ids", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "relaynote-storage-safe-"));
+  await assert.rejects(() => readNote(root, "../escape"), /unsafe session id/);
 });

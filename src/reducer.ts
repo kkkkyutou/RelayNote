@@ -1,8 +1,10 @@
 import type {
   CommandRecord,
+  GitDiffSummary,
   HandoverNote,
   NoteAction,
   NoteBlocker,
+  NoteCheck,
   RelayEvent,
   ResumePacket,
   SessionMetadata,
@@ -16,40 +18,85 @@ interface ReduceState {
   blockers: NoteBlocker[];
   evidence: HandoverNote["evidence"];
   touchedFiles: string[];
+  checks: NoteCheck[];
+  diffStat?: GitDiffSummary;
   latestOutput?: string;
   hintedStatus?: SessionStatus;
   latestFailure?: string;
+  failureCount: number;
+  lastActivityAt: string;
+  waitingForApproval: boolean;
+  handoffRequested: boolean;
   stopped?: boolean;
 }
 
+interface ReduceInputs {
+  metadata: SessionMetadata;
+  events: RelayEvent[];
+  changedFiles: string[];
+  diffStat?: GitDiffSummary;
+}
+
 function pushAction(state: ReduceState, action: NoteAction): void {
-  state.recentActions = [...state.recentActions.slice(-7), action];
+  state.recentActions = [...state.recentActions.slice(-9), action];
 }
 
 function pushEvidence(state: ReduceState, evidence: HandoverNote["evidence"][number]): void {
-  state.evidence = [...state.evidence.slice(-11), evidence];
+  state.evidence = [...state.evidence.slice(-15), evidence];
 }
 
 function pushBlocker(state: ReduceState, blocker: NoteBlocker): void {
   const exists = state.blockers.some((item) => item.label === blocker.label && item.detail === blocker.detail);
   if (!exists) {
-    state.blockers = [...state.blockers.slice(-5), blocker];
+    state.blockers = [...state.blockers.slice(-7), blocker];
   }
 }
 
+function pushCheck(state: ReduceState, check: NoteCheck): void {
+  const withoutPrevious = state.checks.filter((item) => item.name !== check.name);
+  state.checks = [...withoutPrevious, check].sort((left, right) => left.ts.localeCompare(right.ts)).slice(-8);
+}
+
+function approvalHintFromOutput(text: string): string | undefined {
+  const normalized = text.toLowerCase();
+  if (
+    normalized.includes("waiting for approval") ||
+    normalized.includes("approval required") ||
+    normalized.includes("need approval") ||
+    normalized.includes("confirm to continue")
+  ) {
+    return truncate(text, 180);
+  }
+  return undefined;
+}
+
+function allChecksPassed(checks: NoteCheck[]): boolean {
+  return checks.length > 0 && checks.every((check) => check.status === "passed");
+}
+
+function hasFailedCheck(checks: NoteCheck[]): boolean {
+  return checks.some((check) => check.status === "failed");
+}
+
 function inferStatus(state: ReduceState): SessionStatus {
-  if (state.latestFailure) {
+  if (state.latestFailure || hasFailedCheck(state.checks) || state.failureCount >= 2) {
     return "blocked";
   }
-  if (state.blockers.length > 0) {
+  if (state.waitingForApproval || state.blockers.length > 0) {
     return "waiting_for_human";
+  }
+  if (state.handoffRequested) {
+    return "ready_to_resume";
   }
   if (state.hintedStatus) {
     return state.hintedStatus;
   }
   if (state.stopped) {
-    if (state.touchedFiles.length > 0) {
+    if (state.touchedFiles.length > 0 && (state.checks.length === 0 || allChecksPassed(state.checks))) {
       return "ready_for_review";
+    }
+    if (state.touchedFiles.length > 0) {
+      return "ready_to_resume";
     }
     return "completed";
   }
@@ -68,6 +115,13 @@ function buildSummary(metadata: SessionMetadata, state: ReduceState, status: Ses
   if (fileCount > 0) {
     parts.push(`Touched files: ${fileCount}.`);
   }
+  if (state.diffStat?.summaryLine) {
+    parts.push(`Git diff: ${state.diffStat.summaryLine}.`);
+  }
+  if (state.checks.length > 0) {
+    const checksSummary = state.checks.map((check) => `${check.name}:${check.status}`).join(", ");
+    parts.push(`Checks: ${checksSummary}.`);
+  }
   if (blocker) {
     parts.push(`Top blocker: ${blocker}.`);
   } else if (state.latestFailure) {
@@ -80,13 +134,13 @@ function buildNextActions(status: SessionStatus, state: ReduceState): string[] {
   if (status === "blocked") {
     return [
       state.blockers.at(-1)?.detail || state.latestFailure || "Inspect the failing command and rerun a focused check.",
-      "Review the latest output and touched files before resuming.",
+      "Review the latest output, failed checks, and touched files before resuming.",
     ];
   }
   if (status === "ready_for_review") {
     return [
-      "Review the touched files and command evidence.",
-      "Run any missing validation before merge or handoff.",
+      "Review the touched files, diff summary, and validation evidence.",
+      "If the patch looks correct, hand it off for merge or human review.",
     ];
   }
   if (status === "completed") {
@@ -118,7 +172,13 @@ function buildRisks(status: SessionStatus, state: ReduceState): string[] {
   if (status === "blocked") {
     risks.push("The latest known execution failed and may require manual diagnosis.");
   }
-  return risks;
+  if (state.checks.some((check) => check.status === "failed")) {
+    risks.push("At least one named validation check is failing.");
+  }
+  if (state.touchedFiles.length > 0 && state.checks.length === 0 && state.stopped) {
+    risks.push("Files changed without any named validation checks being recorded.");
+  }
+  return uniqueStrings(risks);
 }
 
 function buildResumePrompt(metadata: SessionMetadata, status: SessionStatus, state: ReduceState): string {
@@ -133,6 +193,12 @@ function buildResumePrompt(metadata: SessionMetadata, status: SessionStatus, sta
   if (state.touchedFiles.length > 0) {
     lines.push(`Touched files: ${state.touchedFiles.slice(0, 8).join(", ")}`);
   }
+  if (state.diffStat?.summaryLine) {
+    lines.push(`Git diff: ${state.diffStat.summaryLine}`);
+  }
+  if (state.checks.length > 0) {
+    lines.push(`Checks: ${state.checks.map((check) => `${check.name}:${check.status}`).join(", ")}`);
+  }
   if (state.latestFailure) {
     lines.push(`Latest failure: ${state.latestFailure}`);
   }
@@ -140,20 +206,25 @@ function buildResumePrompt(metadata: SessionMetadata, status: SessionStatus, sta
   return lines.join("\n");
 }
 
-export function reduceSession(
-  metadata: SessionMetadata,
-  events: RelayEvent[],
-  changedFiles: string[],
-): { note: HandoverNote; resumePacket: ResumePacket } {
+export function reduceSession(inputs: ReduceInputs): { note: HandoverNote; resumePacket: ResumePacket } {
+  const { metadata, events, changedFiles, diffStat } = inputs;
+  const lastEventTs = events.at(-1)?.ts ?? metadata.updatedAt;
   const state: ReduceState = {
     commands: [],
     recentActions: [],
     blockers: [],
     evidence: [],
     touchedFiles: changedFiles,
+    checks: [],
+    diffStat,
+    failureCount: 0,
+    lastActivityAt: lastEventTs,
+    waitingForApproval: false,
+    handoffRequested: false,
   };
 
   for (const event of events) {
+    state.lastActivityAt = event.ts;
     switch (event.kind) {
       case "session_started":
         pushAction(state, { ts: event.ts, label: `Started ${metadata.runtime} session` });
@@ -161,7 +232,7 @@ export function reduceSession(
       case "command_started": {
         const command = String((event.payload as { command?: string }).command ?? "");
         state.commands.push({ command, startedAt: event.ts });
-        pushAction(state, { ts: event.ts, label: `Ran command`, detail: truncate(command) });
+        pushAction(state, { ts: event.ts, label: "Ran command", detail: truncate(command) });
         pushEvidence(state, {
           type: "command",
           label: "Command started",
@@ -189,10 +260,48 @@ export function reduceSession(
         });
         if (exitCode && exitCode !== 0) {
           state.latestFailure = detail;
+          state.failureCount += 1;
           pushBlocker(state, {
             ts: event.ts,
             label: "Last command failed",
             detail,
+          });
+        }
+        break;
+      }
+      case "validation_reported": {
+        const payload = event.payload as {
+          name?: string;
+          command?: string;
+          exitCode?: number | null;
+          status?: "passed" | "failed";
+        };
+        const check: NoteCheck = {
+          name: payload.name ?? "unnamed",
+          command: payload.command,
+          exitCode: payload.exitCode,
+          status: payload.status ?? "failed",
+          ts: event.ts,
+        };
+        pushCheck(state, check);
+        pushAction(state, {
+          ts: event.ts,
+          label: `Validation ${check.status}`,
+          detail: `${check.name}${check.command ? ` - ${truncate(check.command)}` : ""}`,
+        });
+        pushEvidence(state, {
+          type: "validation",
+          label: `Validation ${check.status}`,
+          detail: `${check.name}${check.command ? ` | ${truncate(check.command)}` : ""}`,
+          ts: event.ts,
+        });
+        if (check.status === "failed") {
+          state.latestFailure = `${check.name} failed`;
+          state.failureCount += 1;
+          pushBlocker(state, {
+            ts: event.ts,
+            label: "Validation failed",
+            detail: `${check.name}${check.command ? ` - ${truncate(check.command)}` : ""}`,
           });
         }
         break;
@@ -208,11 +317,23 @@ export function reduceSession(
             ts: event.ts,
           });
         }
+        const approvalDetail = approvalHintFromOutput(text);
+        if (approvalDetail) {
+          state.waitingForApproval = true;
+          pushBlocker(state, {
+            ts: event.ts,
+            label: "Session appears to be waiting for approval",
+            detail: approvalDetail,
+          });
+        }
         break;
       }
       case "files_changed": {
-        const payload = event.payload as { files?: string[] };
+        const payload = event.payload as { files?: string[]; diffStat?: GitDiffSummary };
         state.touchedFiles = uniqueStrings([...state.touchedFiles, ...(payload.files ?? [])]).sort();
+        if (payload.diffStat) {
+          state.diffStat = payload.diffStat;
+        }
         pushAction(state, {
           ts: event.ts,
           label: "Detected file changes",
@@ -221,7 +342,10 @@ export function reduceSession(
         pushEvidence(state, {
           type: "git",
           label: "Changed files refreshed",
-          detail: truncate((payload.files ?? []).join(", "), 180),
+          detail: truncate(
+            [payload.diffStat?.summaryLine, (payload.files ?? []).join(", ")].filter(Boolean).join(" | "),
+            180,
+          ),
           ts: event.ts,
         });
         break;
@@ -240,17 +364,29 @@ export function reduceSession(
       case "annotation_added": {
         const payload = event.payload as { category?: string; text?: string };
         const detail = truncate(payload.text ?? "");
-        pushAction(state, { ts: event.ts, label: `Annotation: ${payload.category ?? "note"}`, detail });
+        const category = payload.category ?? "note";
+        pushAction(state, { ts: event.ts, label: `Annotation: ${category}`, detail });
         pushEvidence(state, {
           type: "annotation",
-          label: `Annotation: ${payload.category ?? "note"}`,
+          label: `Annotation: ${category}`,
           detail,
           ts: event.ts,
         });
-        if ((payload.category ?? "") === "blocker") {
+        if (category === "blocker") {
           pushBlocker(state, {
             ts: event.ts,
             label: "Operator blocker",
+            detail,
+          });
+        }
+        if (category === "handoff") {
+          state.handoffRequested = true;
+        }
+        if (category === "approval") {
+          state.waitingForApproval = true;
+          pushBlocker(state, {
+            ts: event.ts,
+            label: "Operator marked approval required",
             detail,
           });
         }
@@ -263,6 +399,14 @@ export function reduceSession(
           label: "Session idle",
           detail: `${payload.seconds ?? 0}s without new output`,
         });
+        if (state.latestFailure) {
+          state.failureCount += 1;
+          pushBlocker(state, {
+            ts: event.ts,
+            label: "Session remained idle after a failure",
+            detail: `${payload.seconds ?? 0}s without new output after the latest failure`,
+          });
+        }
         break;
       }
       case "status_hint": {
@@ -292,16 +436,21 @@ export function reduceSession(
   const note: HandoverNote = {
     sessionId: metadata.sessionId,
     runtime: metadata.runtime,
+    source: metadata.source,
+    sourceRef: metadata.sourceRef,
     goal: metadata.goal,
     status,
     startedAt: metadata.createdAt,
     updatedAt: metadata.updatedAt,
+    lastActivityAt: state.lastActivityAt,
     workingDirectory: metadata.workingDirectory,
     summary: buildSummary(metadata, state, status),
-    recentActions: state.recentActions.slice(-6),
+    recentActions: state.recentActions.slice(-8),
     touchedFiles: state.touchedFiles.slice(0, 50),
-    evidence: state.evidence.slice(-8),
-    blockers: state.blockers.slice(-4),
+    diffStat: state.diffStat,
+    checks: state.checks.slice(-6),
+    evidence: state.evidence.slice(-12),
+    blockers: state.blockers.slice(-5),
     nextActions: buildNextActions(status, state),
     risks: buildRisks(status, state),
     resumePrompt: buildResumePrompt(metadata, status, state),
@@ -315,6 +464,8 @@ export function reduceSession(
     blockers: note.blockers,
     nextActions: note.nextActions,
     touchedFiles: note.touchedFiles,
+    diffStat: note.diffStat,
+    checks: note.checks,
     resumePrompt: note.resumePrompt,
     updatedAt: note.updatedAt,
   };
