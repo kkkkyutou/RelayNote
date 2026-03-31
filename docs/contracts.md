@@ -128,6 +128,22 @@ The API session list and local readers should consume a compact snapshot shape:
 - `blockersCount`
 - `checksCount`
 
+## HTTP Integration Contract (Stage 3)
+
+Stable endpoints for integration:
+
+- `GET /api/health`
+- `GET /api/sessions`
+- `GET /api/sessions/:id/note`
+- `GET /api/sessions/:id/resume-packet`
+- `GET /api/touchmux/v1/sessions`
+- `GET /api/touchmux/v1/sessions/:id`
+
+If token auth is enabled, API callers must pass:
+
+- `X-RelayNote-Token` header, or
+- `token` query parameter
+
 ## Status Contract
 
 Stage 1 keeps the status model intentionally small:

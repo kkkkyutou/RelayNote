@@ -140,7 +140,7 @@ RelayNote 会为每个 session 生成一组固定产物：
 
 - 阶段一：核心 handover contract、状态推断、validation evidence，以及基础文件系统安全边界已经完成。
 - 阶段二：本地优先 CLI / TUI 使用体验已经实现。
-- 阶段三：再继续把集成接口和 TouchMux 接入面做稳。
+- 阶段三：集成与安全边界已经落地，包含 TouchMux v1 接口、token 认证和 origin allowlist。
 
 ## 快速开始
 
@@ -242,10 +242,25 @@ node dist/cli.js check run-2026-03-31T00-00-00-000Z \
 node dist/cli.js serve --host 127.0.0.1 --port 4318
 ```
 
+推荐用于集成场景：
+
+```bash
+node dist/cli.js serve \
+  --host 127.0.0.1 \
+  --port 4318 \
+  --token your-strong-token \
+  --allowed-origins https://touchmux.example.com
+```
+
 然后打开：
 
 - Web reader：`http://127.0.0.1:4318/`
 - Sessions API：`http://127.0.0.1:4318/api/sessions`
+
+面向 TouchMux 的接口：
+
+- `GET /api/touchmux/v1/sessions`
+- `GET /api/touchmux/v1/sessions/:id`
 
 ### 启动本地终端 TUI（不需要浏览器）
 
@@ -337,6 +352,7 @@ v0.1 之后最值得做的是只读 API 和最小手机 reader，这样像 Touch
 - [技术架构](./docs/architecture.md)
 - [Contracts](./docs/contracts.md)
 - [安全说明](./docs/security.md)
+- [TouchMux 合同 v1](./docs/touchmux_v1.md)
 - [Roadmap](./docs/roadmap.md)
 
 ## License

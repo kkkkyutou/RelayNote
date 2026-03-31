@@ -7,7 +7,11 @@ function escapeHtml(input: string): string {
     .replaceAll("'", "&#39;");
 }
 
-export function renderAppShell(): string {
+export function renderAppShell(authToken: string | undefined): string {
+  const authLine = authToken
+    ? "Token auth is enabled. Add ?token=YOUR_TOKEN to the reader URL or use the X-RelayNote-Token header."
+    : "Token auth is disabled. For remote bind, run with --token.";
+
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -42,9 +46,7 @@ export function renderAppShell(): string {
         min-height: 100vh;
         padding: 20px 16px 48px;
       }
-      .hero {
-        padding: 20px 4px 16px;
-      }
+      .hero { padding: 20px 4px 16px; }
       .eyebrow {
         color: var(--accent);
         font-size: 12px;
@@ -52,18 +54,9 @@ export function renderAppShell(): string {
         text-transform: uppercase;
         font-weight: 700;
       }
-      h1 {
-        margin: 8px 0 10px;
-        font-size: clamp(32px, 8vw, 56px);
-        line-height: 0.95;
-      }
-      .sub {
-        margin: 0;
-        color: var(--muted);
-        max-width: 760px;
-        font-size: 16px;
-        line-height: 1.6;
-      }
+      h1 { margin: 8px 0 10px; font-size: clamp(32px, 8vw, 56px); line-height: 0.95; }
+      .sub { margin: 0; color: var(--muted); max-width: 780px; font-size: 16px; line-height: 1.6; }
+      .security { margin-top: 10px; color: var(--muted); font-size: 13px; }
       .layout {
         display: grid;
         grid-template-columns: 340px minmax(0, 1fr);
@@ -77,111 +70,27 @@ export function renderAppShell(): string {
         box-shadow: 0 12px 32px rgba(92, 72, 37, 0.08);
         overflow: hidden;
       }
-      .panel-header {
-        padding: 14px 16px;
-        border-bottom: 1px solid var(--line);
-        font-weight: 700;
-      }
-      .session-list {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        padding: 12px;
-      }
-      .session-card {
-        border: 1px solid var(--line);
-        border-radius: 16px;
-        background: #fff;
-        padding: 12px;
-        text-align: left;
-        cursor: pointer;
-      }
-      .session-card.active {
-        border-color: var(--accent);
-        background: var(--accent-soft);
-      }
-      .session-top {
-        display: flex;
-        justify-content: space-between;
-        gap: 10px;
-        align-items: start;
-      }
-      .session-id {
-        font-size: 12px;
-        color: var(--muted);
-        word-break: break-all;
-      }
-      .goal {
-        font-size: 15px;
-        font-weight: 700;
-        margin-top: 6px;
-      }
-      .meta {
-        margin-top: 8px;
-        font-size: 12px;
-        color: var(--muted);
-      }
-      .badge {
-        border-radius: 999px;
-        padding: 4px 10px;
-        font-size: 11px;
-        font-weight: 700;
-        white-space: nowrap;
-      }
-      .badge.running, .badge.ready_for_review, .badge.ready_to_resume, .badge.completed {
-        background: var(--accent-soft);
-        color: var(--accent);
-      }
-      .badge.blocked, .badge.waiting_for_human, .badge.abandoned {
-        background: var(--danger-soft);
-        color: var(--danger);
-      }
-      .detail {
-        padding: 16px;
-      }
-      .detail-grid {
-        display: grid;
-        gap: 14px;
-      }
-      .section {
-        border: 1px solid var(--line);
-        border-radius: 18px;
-        padding: 14px;
-        background: #fff;
-      }
-      .section h2 {
-        margin: 0 0 10px;
-        font-size: 13px;
-        color: var(--muted);
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-      }
-      .summary {
-        font-size: 16px;
-        line-height: 1.6;
-      }
-      ul {
-        margin: 0;
-        padding-left: 18px;
-      }
+      .panel-header { padding: 14px 16px; border-bottom: 1px solid var(--line); font-weight: 700; }
+      .session-list { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+      .session-card { border: 1px solid var(--line); border-radius: 16px; background: #fff; padding: 12px; text-align: left; cursor: pointer; }
+      .session-card.active { border-color: var(--accent); background: var(--accent-soft); }
+      .session-top { display: flex; justify-content: space-between; gap: 10px; align-items: start; }
+      .session-id { font-size: 12px; color: var(--muted); word-break: break-all; }
+      .goal { font-size: 15px; font-weight: 700; margin-top: 6px; }
+      .meta { margin-top: 8px; font-size: 12px; color: var(--muted); }
+      .badge { border-radius: 999px; padding: 4px 10px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+      .badge.running, .badge.ready_for_review, .badge.ready_to_resume, .badge.completed { background: var(--accent-soft); color: var(--accent); }
+      .badge.blocked, .badge.waiting_for_human, .badge.abandoned { background: var(--danger-soft); color: var(--danger); }
+      .detail { padding: 16px; }
+      .detail-grid { display: grid; gap: 14px; }
+      .section { border: 1px solid var(--line); border-radius: 18px; padding: 14px; background: #fff; }
+      .section h2 { margin: 0 0 10px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+      .summary { font-size: 16px; line-height: 1.6; }
+      ul { margin: 0; padding-left: 18px; }
       li { margin: 6px 0; line-height: 1.5; }
-      pre {
-        white-space: pre-wrap;
-        word-break: break-word;
-        margin: 0;
-        font-family: "IBM Plex Mono", "Fira Code", monospace;
-        font-size: 13px;
-        line-height: 1.6;
-      }
-      .empty {
-        color: var(--muted);
-        padding: 16px;
-      }
-      @media (max-width: 840px) {
-        .layout {
-          grid-template-columns: 1fr;
-        }
-      }
+      pre { white-space: pre-wrap; word-break: break-word; margin: 0; font-family: "IBM Plex Mono", "Fira Code", monospace; font-size: 13px; line-height: 1.6; }
+      .empty { color: var(--muted); padding: 16px; }
+      @media (max-width: 840px) { .layout { grid-template-columns: 1fr; } }
     </style>
   </head>
   <body>
@@ -193,6 +102,7 @@ export function renderAppShell(): string {
           This built-in reader is meant for fast supervision and TouchMux-style integration:
           one JSON API, one small mobile UI, no browser IDE baggage.
         </p>
+        <p class="security">${escapeHtml(authLine)}</p>
       </section>
       <div class="layout">
         <aside class="panel">
@@ -208,6 +118,7 @@ export function renderAppShell(): string {
     <script>
       const sessionListEl = document.getElementById("session-list");
       const detailEl = document.getElementById("detail");
+      const queryToken = new URLSearchParams(window.location.search).get("token");
       let currentSessionId = null;
 
       function escapeHtml(value) {
@@ -217,6 +128,24 @@ export function renderAppShell(): string {
           .replaceAll(">", "&gt;")
           .replaceAll('"', "&quot;")
           .replaceAll("'", "&#39;");
+      }
+
+      function apiPath(path) {
+        if (!queryToken) {
+          return path;
+        }
+        const connector = path.includes("?") ? "&" : "?";
+        return path + connector + "token=" + encodeURIComponent(queryToken);
+      }
+
+      async function apiFetch(path) {
+        const response = await fetch(apiPath(path), {
+          headers: queryToken ? { "X-RelayNote-Token": queryToken } : {}
+        });
+        if (!response.ok) {
+          throw new Error(path + " -> " + response.status);
+        }
+        return response.json();
       }
 
       function renderSessionList(sessions) {
@@ -266,9 +195,9 @@ export function renderAppShell(): string {
             <section class="section">
               <h2>Status</h2>
               <div><strong>\${escapeHtml(note.status)}</strong></div>
-              <div class="meta">Runtime: \${escapeHtml(note.runtime)}</div>
+              <div class="meta">Runtime: \${escapeHtml(note.runtime)} · Source: \${escapeHtml(note.source)}</div>
               <div class="meta">Working directory: \${escapeHtml(note.workingDirectory)}</div>
-              <div class="meta">Updated: \${escapeHtml(note.updatedAt)}</div>
+              <div class="meta">Updated: \${escapeHtml(note.updatedAt)} · Last activity: \${escapeHtml(note.lastActivityAt)}</div>
             </section>
             <section class="section">
               <h2>Blockers</h2>
@@ -283,6 +212,10 @@ export function renderAppShell(): string {
               \${renderList(note.touchedFiles)}
             </section>
             <section class="section">
+              <h2>Checks</h2>
+              \${renderList((note.checks || []).map((check) => check.name + ": " + check.status))}
+            </section>
+            <section class="section">
               <h2>Resume Prompt</h2>
               <pre>\${escapeHtml(resumePacket.resumePrompt)}</pre>
             </section>
@@ -291,7 +224,7 @@ export function renderAppShell(): string {
       }
 
       async function refresh() {
-        const sessions = await fetch("/api/sessions").then((response) => response.json());
+        const sessions = await apiFetch("/api/sessions");
         renderSessionList(sessions);
         if (!sessions.length) {
           return;
@@ -299,14 +232,16 @@ export function renderAppShell(): string {
         const active = sessions.find((session) => session.sessionId === currentSessionId) || sessions[0];
         currentSessionId = active.sessionId;
         const [note, resumePacket] = await Promise.all([
-          fetch("/api/sessions/" + encodeURIComponent(active.sessionId) + "/note").then((response) => response.json()),
-          fetch("/api/sessions/" + encodeURIComponent(active.sessionId) + "/resume-packet").then((response) => response.json())
+          apiFetch("/api/sessions/" + encodeURIComponent(active.sessionId) + "/note"),
+          apiFetch("/api/sessions/" + encodeURIComponent(active.sessionId) + "/resume-packet")
         ]);
         renderDetail(note, resumePacket);
       }
 
-      void refresh();
-      setInterval(() => { void refresh(); }, 5000);
+      void refresh().catch((error) => {
+        detailEl.innerHTML = "<div class=\\"empty\\">Reader error: " + escapeHtml(String(error)) + "</div>";
+      });
+      setInterval(() => { void refresh().catch(() => undefined); }, 5000);
     </script>
   </body>
 </html>`;

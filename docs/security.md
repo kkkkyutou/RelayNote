@@ -20,6 +20,8 @@ The built-in server binds to `127.0.0.1` by default.
 
 This keeps the default usage local-only.
 
+When binding to non-loopback hosts, RelayNote now requires `--token`.
+
 If you later expose RelayNote remotely, treat it as internal infrastructure and
 put it behind an authenticated boundary such as:
 
@@ -41,6 +43,17 @@ It exposes:
 This reduces the risk of remote mutation, but it does not make public exposure
 safe by itself.
 
+## 3.1 Token Auth
+
+If `--token` is set, all `/api/*` routes require authentication.
+
+Accepted forms:
+
+- `X-RelayNote-Token` header
+- `?token=` query parameter
+
+For integration systems, prefer header auth.
+
 ## 4. Evidence Handling
 
 RelayNote stores terminal-derived evidence and command summaries on disk.
@@ -57,3 +70,10 @@ At this stage, the intended trust model is:
 - local machine or trusted private network
 
 RelayNote should not yet be treated as an internet-facing public service.
+
+## 6. CORS Boundary
+
+`--allowed-origins` can be used to explicitly allow browser origins for API
+requests.
+
+Without this allowlist, browser cross-origin calls are not opened.

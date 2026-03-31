@@ -149,8 +149,8 @@ transcript.
 - Stage 1: Core handover contracts, status inference, validation evidence, and
   baseline filesystem safety are implemented.
 - Stage 2: local-first CLI and TUI usage is implemented.
-- Stage 3: stronger integration surfaces and TouchMux-oriented contracts come
-  after that.
+- Stage 3: integration and security surface is implemented with TouchMux v1
+  endpoints, token auth, and origin allowlist controls.
 
 ## Quick Start
 
@@ -252,10 +252,25 @@ node dist/cli.js check run-2026-03-31T00-00-00-000Z \
 node dist/cli.js serve --host 127.0.0.1 --port 4318
 ```
 
+Recommended for integration:
+
+```bash
+node dist/cli.js serve \
+  --host 127.0.0.1 \
+  --port 4318 \
+  --token your-strong-token \
+  --allowed-origins https://touchmux.example.com
+```
+
 Then open:
 
 - Web reader: `http://127.0.0.1:4318/`
 - Sessions API: `http://127.0.0.1:4318/api/sessions`
+
+TouchMux-oriented endpoints:
+
+- `GET /api/touchmux/v1/sessions`
+- `GET /api/touchmux/v1/sessions/:id`
 
 ### Start local TUI (no browser)
 
@@ -349,6 +364,7 @@ See also:
 - [Architecture](./docs/architecture.md)
 - [Contracts](./docs/contracts.md)
 - [Security Notes](./docs/security.md)
+- [TouchMux Contract v1](./docs/touchmux_v1.md)
 - [Roadmap](./docs/roadmap.md)
 
 ## License

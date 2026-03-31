@@ -21,6 +21,16 @@ interface ParsedArgs {
   commandAfterDoubleDash: string[];
 }
 
+function parseCsv(value: string | undefined): string[] {
+  if (!value) {
+    return [];
+  }
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function parseArgs(argv: string[]): ParsedArgs {
   const positionals: string[] = [];
   const flags = new Map<string, string | boolean>();
@@ -80,7 +90,7 @@ Usage:
   relaynote resume <session-id> [--prompt-only] [--data-root <dir>]
   relaynote check <session-id> --name <check-name> [--cwd <dir>] [--data-root <dir>] -- <command...>
   relaynote annotate <session-id> --type blocker|note|handoff --text <text> [--data-root <dir>]
-  relaynote serve [--host <host>] [--port <port>] [--data-root <dir>]
+  relaynote serve [--host <host>] [--port <port>] [--token <token>] [--allowed-origins <csv>] [--data-root <dir>]
   relaynote tui [--data-root <dir>]
 `);
 }
@@ -213,6 +223,8 @@ async function main(): Promise<void> {
       dataRoot,
       host: getOptionalFlag(parsed, "host") ?? "127.0.0.1",
       port: Number(getOptionalFlag(parsed, "port") ?? "4318"),
+      authToken: getOptionalFlag(parsed, "token"),
+      allowedOrigins: parseCsv(getOptionalFlag(parsed, "allowed-origins")),
     });
     return;
   }
