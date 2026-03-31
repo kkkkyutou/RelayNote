@@ -94,3 +94,15 @@ export interface SessionMetadata {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface SessionSnapshot {
+  sessionId: string;
+  goal: string;
+  status: SessionStatus;
+  runtime: string;
+  updatedAt: string;
+  workingDirectory: string;
+  summary: string;
+  touchedFilesCount: number;
+  blockersCount: number;
+}

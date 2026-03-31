@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 import { readNote, readNoteMarkdown, readResumePacket } from "./storage.js";
 import { deriveWorkingDirectory, emitEvent } from "./session.js";
 import { runCommandWithRelayNote } from "./run.js";
+import { startServer } from "./server.js";
 import { watchTmuxSession } from "./watch.js";
 import { resolveDataRoot } from "./utils.js";
 
@@ -70,6 +71,7 @@ Usage:
   relaynote note export <session-id> --format json|md [--output <file>] [--data-root <dir>]
   relaynote resume <session-id> [--data-root <dir>]
   relaynote annotate <session-id> --type blocker|note|handoff --text <text> [--data-root <dir>]
+  relaynote serve [--host <host>] [--port <port>] [--data-root <dir>]
 `);
 }
 
@@ -150,6 +152,15 @@ async function main(): Promise<void> {
       text: getRequiredFlag(parsed, "text"),
     });
     console.log(`annotation added to ${subcommand}`);
+    return;
+  }
+
+  if (command === "serve") {
+    await startServer({
+      dataRoot,
+      host: getOptionalFlag(parsed, "host") ?? "127.0.0.1",
+      port: Number(getOptionalFlag(parsed, "port") ?? "4318"),
+    });
     return;
   }
 

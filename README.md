@@ -9,6 +9,32 @@ It turns raw terminal activity into a structured handover note and a resume
 packet, so another person, another model, or your future self can continue the
 work without replaying the entire scrollback.
 
+## Two Ways To Use RelayNote
+
+RelayNote now serves two closely related audiences:
+
+### 1. Fast TouchMux integration
+
+If you already have a remote workbench such as TouchMux, RelayNote can act as a
+read-only handover engine behind it.
+
+The built-in API exposes:
+
+- `GET /api/health`
+- `GET /api/sessions`
+- `GET /api/sessions/:id/note`
+- `GET /api/sessions/:id/resume-packet`
+
+This keeps the integration surface small and stable.
+
+### 2. Standalone direct use
+
+If you do not need TouchMux, RelayNote still works as a self-contained tool:
+
+- CLI for `watch`, `run`, `note`, `resume`, `annotate`
+- small built-in web server
+- mobile-friendly browser reader
+
 ## Why RelayNote
 
 Most AI coding tools are good at one of these two things:
@@ -179,6 +205,17 @@ node dist/cli.js annotate run-2026-03-31T00-00-00-000Z \
   --type blocker \
   --text "Need a human review before merge"
 ```
+
+### Start the built-in API and mobile reader
+
+```bash
+node dist/cli.js serve --host 127.0.0.1 --port 4318
+```
+
+Then open:
+
+- Web reader: `http://127.0.0.1:4318/`
+- Sessions API: `http://127.0.0.1:4318/api/sessions`
 
 ## Output Layout
 

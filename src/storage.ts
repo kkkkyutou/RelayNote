@@ -1,6 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { HandoverNote, RelayEvent, ResumePacket, SessionMetadata } from "./types.js";
+import type {
+  HandoverNote,
+  RelayEvent,
+  ResumePacket,
+  SessionMetadata,
+  SessionSnapshot,
+} from "./types.js";
 
 function sessionDir(dataRoot: string, sessionId: string): string {
   return path.join(dataRoot, "sessions", sessionId);
@@ -95,4 +101,36 @@ export async function listSessions(dataRoot: string): Promise<string[]> {
   } catch {
     return [];
   }
+}
+
+export async function listSessionSnapshots(dataRoot: string): Promise<SessionSnapshot[]> {
+  const sessionIds = await listSessions(dataRoot);
+  const snapshots = await Promise.all(
+    sessionIds.map(async (sessionId) => {
+      try {
+        const [metadata, note] = await Promise.all([
+          readMetadata(dataRoot, sessionId),
+          readNote(dataRoot, sessionId),
+        ]);
+        const snapshot: SessionSnapshot = {
+          sessionId,
+          goal: note.goal,
+          status: note.status,
+          runtime: metadata.runtime,
+          updatedAt: note.updatedAt,
+          workingDirectory: note.workingDirectory,
+          summary: note.summary,
+          touchedFilesCount: note.touchedFiles.length,
+          blockersCount: note.blockers.length,
+        };
+        return snapshot;
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  return snapshots
+    .filter((item): item is SessionSnapshot => item !== null)
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
 }
