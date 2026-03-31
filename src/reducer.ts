@@ -38,32 +38,32 @@ interface ReduceInputs {
 }
 
 function pushAction(state: ReduceState, action: NoteAction): void {
-  state.recentActions = [...state.recentActions.slice(-9), action];
+  state.recentActions = [...state.recentActions.slice(-11), action];
 }
 
 function pushEvidence(state: ReduceState, evidence: HandoverNote["evidence"][number]): void {
-  state.evidence = [...state.evidence.slice(-15), evidence];
+  state.evidence = [...state.evidence.slice(-16), evidence];
 }
 
 function pushBlocker(state: ReduceState, blocker: NoteBlocker): void {
   const exists = state.blockers.some((item) => item.label === blocker.label && item.detail === blocker.detail);
   if (!exists) {
-    state.blockers = [...state.blockers.slice(-7), blocker];
+    state.blockers = [...state.blockers.slice(-8), blocker];
   }
 }
 
 function pushCheck(state: ReduceState, check: NoteCheck): void {
   const withoutPrevious = state.checks.filter((item) => item.name !== check.name);
-  state.checks = [...withoutPrevious, check].sort((left, right) => left.ts.localeCompare(right.ts)).slice(-8);
+  state.checks = [...withoutPrevious, check].sort((left, right) => left.ts.localeCompare(right.ts)).slice(-10);
 }
 
 function approvalHintFromOutput(text: string): string | undefined {
   const normalized = text.toLowerCase();
   if (
-    normalized.includes("waiting for approval") ||
-    normalized.includes("approval required") ||
-    normalized.includes("need approval") ||
-    normalized.includes("confirm to continue")
+    normalized.includes("waiting for approval")
+    || normalized.includes("approval required")
+    || normalized.includes("need approval")
+    || normalized.includes("confirm to continue")
   ) {
     return truncate(text, 180);
   }
@@ -92,10 +92,10 @@ function inferStatus(state: ReduceState): SessionStatus {
     return state.hintedStatus;
   }
   if (state.stopped) {
-    if (state.touchedFiles.length > 0 && (state.checks.length === 0 || allChecksPassed(state.checks))) {
+    if (state.touchedFiles.length > 0 && allChecksPassed(state.checks)) {
       return "ready_for_review";
     }
-    if (state.touchedFiles.length > 0) {
+    if (state.touchedFiles.length > 0 && state.checks.length === 0) {
       return "ready_to_resume";
     }
     return "completed";
@@ -103,17 +103,57 @@ function inferStatus(state: ReduceState): SessionStatus {
   return "running";
 }
 
+function buildStatusReason(status: SessionStatus, state: ReduceState): string {
+  if (status === "blocked") {
+    return state.latestFailure || "Repeated failures or failed validation checks detected.";
+  }
+  if (status === "waiting_for_human") {
+    return state.blockers.at(-1)?.detail
+      || "The session appears to be waiting for explicit human approval.";
+  }
+  if (status === "ready_for_review") {
+    return "Session stopped with code changes and all named checks passing.";
+  }
+  if (status === "ready_to_resume") {
+    return state.handoffRequested
+      ? "An explicit handoff was requested."
+      : "Session ended with unresolved code changes and no full validation evidence.";
+  }
+  if (status === "completed") {
+    return "Session stopped without unresolved blockers.";
+  }
+  return "Session is still active.";
+}
+
+function buildConfidence(status: SessionStatus, state: ReduceState): HandoverNote["confidence"] {
+  if (status === "blocked") {
+    return "high";
+  }
+  if (status === "waiting_for_human") {
+    return "high";
+  }
+  if (status === "ready_for_review") {
+    return state.checks.length > 0 ? "high" : "medium";
+  }
+  if (status === "ready_to_resume") {
+    return "medium";
+  }
+  if (status === "completed") {
+    return "medium";
+  }
+  return "low";
+}
+
 function buildSummary(metadata: SessionMetadata, state: ReduceState, status: SessionStatus): string {
   const action = state.recentActions.at(-1)?.label ?? "Session started";
-  const blocker = state.blockers.at(-1)?.label;
-  const fileCount = state.touchedFiles.length;
   const parts = [
     `Goal: ${metadata.goal}.`,
     `Current status: ${status}.`,
     `Latest action: ${action}.`,
+    buildStatusReason(status, state),
   ];
-  if (fileCount > 0) {
-    parts.push(`Touched files: ${fileCount}.`);
+  if (state.touchedFiles.length > 0) {
+    parts.push(`Touched files: ${state.touchedFiles.length}.`);
   }
   if (state.diffStat?.summaryLine) {
     parts.push(`Git diff: ${state.diffStat.summaryLine}.`);
@@ -122,73 +162,127 @@ function buildSummary(metadata: SessionMetadata, state: ReduceState, status: Ses
     const checksSummary = state.checks.map((check) => `${check.name}:${check.status}`).join(", ");
     parts.push(`Checks: ${checksSummary}.`);
   }
-  if (blocker) {
-    parts.push(`Top blocker: ${blocker}.`);
-  } else if (state.latestFailure) {
-    parts.push(`Latest failure: ${state.latestFailure}.`);
-  }
   return parts.join(" ");
+}
+
+function buildCompactSummary(
+  metadata: SessionMetadata,
+  status: SessionStatus,
+  statusReason: string,
+  state: ReduceState,
+): string {
+  const checkSummary = state.checks.length > 0
+    ? state.checks.map((check) => `${check.name}:${check.status}`).join(", ")
+    : "none";
+  return truncate(
+    `${status.toUpperCase()} | goal=${metadata.goal} | reason=${statusReason} | files=${state.touchedFiles.length} | checks=${checkSummary}`,
+    260,
+  );
 }
 
 function buildNextActions(status: SessionStatus, state: ReduceState): string[] {
   if (status === "blocked") {
     return [
       state.blockers.at(-1)?.detail || state.latestFailure || "Inspect the failing command and rerun a focused check.",
-      "Review the latest output, failed checks, and touched files before resuming.",
+      "Compare failing checks with recent code changes and rerun only targeted validations.",
     ];
   }
   if (status === "ready_for_review") {
     return [
-      "Review the touched files, diff summary, and validation evidence.",
-      "If the patch looks correct, hand it off for merge or human review.",
+      "Review touched files, diff summary, and named check evidence.",
+      "If output quality is acceptable, prepare handoff or merge review.",
     ];
   }
   if (status === "completed") {
-    return ["Archive the session or attach the note to the final task record."];
+    return ["Archive the session note or attach it to the final task record."];
   }
   if (status === "waiting_for_human") {
     return [
-      state.blockers.at(-1)?.detail || "Review the latest blocker and provide guidance.",
-      "Add an operator annotation if the intended next step changes.",
+      state.blockers.at(-1)?.detail || "Review the blocker and provide guidance.",
+      "Record a follow-up annotation if you change session direction.",
     ];
   }
   if (status === "ready_to_resume") {
     return [
-      "Start a new session with the resume packet as the working brief.",
-      "Review the latest evidence before handing off to another operator or model.",
+      "Start a new session using the resume prompt as the execution brief.",
+      "Run at least one named validation check before declaring review-ready.",
     ];
   }
-  return ["Continue the session or wait for more output."];
+  return ["Continue the session or wait for additional output."];
+}
+
+function buildHandoverChecklist(status: SessionStatus, state: ReduceState): string[] {
+  if (status === "blocked") {
+    return [
+      "Open the failing command/check evidence.",
+      "Confirm whether failure is reproducible in current workspace.",
+      "Decide fix-vs-handoff path and annotate that decision.",
+    ];
+  }
+  if (status === "ready_for_review") {
+    return [
+      "Confirm touched files align with original goal.",
+      "Confirm named checks are still passing.",
+      "Attach note and resume packet to review context.",
+    ];
+  }
+  if (status === "ready_to_resume") {
+    return [
+      "Start a fresh execution session from resume prompt.",
+      "Run at least one named check after new changes.",
+      "Update blocker/handoff annotations if scope changes.",
+    ];
+  }
+  if (status === "waiting_for_human") {
+    return [
+      "Read latest blocker details and evidence.",
+      "Provide explicit operator decision via annotation.",
+      "Refresh note after operator action.",
+    ];
+  }
+  return [
+    "Keep session evidence updated.",
+    "Use named checks before review/handoff.",
+    "Archive once final state is confirmed.",
+  ];
 }
 
 function buildRisks(status: SessionStatus, state: ReduceState): string[] {
   const risks: string[] = [];
   if (!state.stopped) {
-    risks.push("Session is still active; the handover note may change.");
+    risks.push("Session is still active; handover data may change.");
   }
   if (state.latestOutput && state.latestOutput.length > 300) {
-    risks.push("Recent output has been truncated in the note view.");
+    risks.push("Recent output snippets are truncated in note view.");
   }
   if (status === "blocked") {
-    risks.push("The latest known execution failed and may require manual diagnosis.");
+    risks.push("At least one failure signal is unresolved.");
   }
   if (state.checks.some((check) => check.status === "failed")) {
-    risks.push("At least one named validation check is failing.");
+    risks.push("Named validation checks include failures.");
   }
   if (state.touchedFiles.length > 0 && state.checks.length === 0 && state.stopped) {
-    risks.push("Files changed without any named validation checks being recorded.");
+    risks.push("Code changed without named validation checks.");
   }
   return uniqueStrings(risks);
 }
 
-function buildResumePrompt(metadata: SessionMetadata, status: SessionStatus, state: ReduceState): string {
+function buildResumePrompt(
+  metadata: SessionMetadata,
+  status: SessionStatus,
+  statusReason: string,
+  confidence: HandoverNote["confidence"],
+  state: ReduceState,
+): string {
   const lines = [
     `Resume session ${metadata.sessionId}.`,
     `Goal: ${metadata.goal}`,
     `Current status: ${status}`,
+    `Status reason: ${statusReason}`,
+    `Confidence: ${confidence}`,
   ];
   if (state.blockers.at(-1)) {
-    lines.push(`Blocker: ${state.blockers.at(-1)?.label}`);
+    lines.push(`Top blocker: ${state.blockers.at(-1)?.label}`);
   }
   if (state.touchedFiles.length > 0) {
     lines.push(`Touched files: ${state.touchedFiles.slice(0, 8).join(", ")}`);
@@ -207,7 +301,13 @@ function buildResumePrompt(metadata: SessionMetadata, status: SessionStatus, sta
 }
 
 export function reduceSession(inputs: ReduceInputs): { note: HandoverNote; resumePacket: ResumePacket } {
-  const { metadata, events, changedFiles, diffStat } = inputs;
+  const {
+    metadata,
+    events,
+    changedFiles,
+    diffStat,
+  } = inputs;
+
   const lastEventTs = events.at(-1)?.ts ?? metadata.updatedAt;
   const state: ReduceState = {
     commands: [],
@@ -245,11 +345,14 @@ export function reduceSession(inputs: ReduceInputs): { note: HandoverNote; resum
         const payload = event.payload as { command?: string; exitCode?: number | null };
         const command = String(payload.command ?? "");
         const exitCode = payload.exitCode ?? null;
-        const existing = [...state.commands].reverse().find((entry) => entry.command === command && !entry.finishedAt);
+        const existing = [...state.commands]
+          .reverse()
+          .find((entry) => entry.command === command && !entry.finishedAt);
         if (existing) {
           existing.finishedAt = event.ts;
           existing.exitCode = exitCode;
         }
+
         const detail = `${truncate(command)} (exit ${exitCode === null ? "unknown" : exitCode})`;
         pushAction(state, { ts: event.ts, label: "Command finished", detail });
         pushEvidence(state, {
@@ -433,6 +536,10 @@ export function reduceSession(inputs: ReduceInputs): { note: HandoverNote; resum
   }
 
   const status = inferStatus(state);
+  const statusReason = buildStatusReason(status, state);
+  const confidence = buildConfidence(status, state);
+  const compactSummary = buildCompactSummary(metadata, status, statusReason, state);
+
   const note: HandoverNote = {
     sessionId: metadata.sessionId,
     runtime: metadata.runtime,
@@ -440,11 +547,14 @@ export function reduceSession(inputs: ReduceInputs): { note: HandoverNote; resum
     sourceRef: metadata.sourceRef,
     goal: metadata.goal,
     status,
+    statusReason,
+    confidence,
     startedAt: metadata.createdAt,
     updatedAt: metadata.updatedAt,
     lastActivityAt: state.lastActivityAt,
     workingDirectory: metadata.workingDirectory,
     summary: buildSummary(metadata, state, status),
+    compactSummary,
     recentActions: state.recentActions.slice(-8),
     touchedFiles: state.touchedFiles.slice(0, 50),
     diffStat: state.diffStat,
@@ -452,17 +562,22 @@ export function reduceSession(inputs: ReduceInputs): { note: HandoverNote; resum
     evidence: state.evidence.slice(-12),
     blockers: state.blockers.slice(-5),
     nextActions: buildNextActions(status, state),
+    handoverChecklist: buildHandoverChecklist(status, state),
     risks: buildRisks(status, state),
-    resumePrompt: buildResumePrompt(metadata, status, state),
+    resumePrompt: buildResumePrompt(metadata, status, statusReason, confidence, state),
   };
 
   const resumePacket: ResumePacket = {
     sessionId: note.sessionId,
     goal: note.goal,
     status: note.status,
+    statusReason: note.statusReason,
+    confidence: note.confidence,
     summary: note.summary,
+    compactSummary: note.compactSummary,
     blockers: note.blockers,
     nextActions: note.nextActions,
+    handoverChecklist: note.handoverChecklist,
     touchedFiles: note.touchedFiles,
     diffStat: note.diffStat,
     checks: note.checks,

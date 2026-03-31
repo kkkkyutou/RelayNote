@@ -2,163 +2,41 @@
 
 [中文说明](./README_CN.md)
 
-RelayNote is a mobile-first, self-hosted session handover layer for long-running
-coding agents.
+RelayNote is a self-hosted session handover layer for long-running coding work.
+It converts terminal activity into structured artifacts so you can continue a task without replaying full logs.
 
-It turns raw terminal activity into a structured handover note and a resume
-packet, so another person, another model, or your future self can continue the
-work without replaying the entire scrollback.
+## Usage Modes
 
-## Two Ways To Use RelayNote
+### 1. TouchMux integration (fast path)
 
-RelayNote now serves two closely related audiences:
+Run RelayNote as a local handover API behind TouchMux (or any mobile workbench):
 
-### 1. Fast TouchMux integration
+- `GET /api/touchmux/v1/sessions`
+- `GET /api/touchmux/v1/sessions/:id`
 
-If you already have a remote workbench such as TouchMux, RelayNote can act as a
-read-only handover engine behind it.
-
-The built-in API exposes:
+Also available:
 
 - `GET /api/health`
 - `GET /api/sessions`
 - `GET /api/sessions/:id/note`
 - `GET /api/sessions/:id/resume-packet`
 
-This keeps the integration surface small and stable.
+### 2. Standalone use (no TouchMux required)
 
-### 2. Standalone direct use
+Use RelayNote directly from CLI/TUI:
 
-If you do not need TouchMux, RelayNote still works as a self-contained tool:
-
-- CLI for `watch`, `run`, `note`, `resume`, `annotate`
-- small built-in web server
-- mobile-friendly browser reader
-
-## Why RelayNote
-
-Most AI coding tools are good at one of these two things:
-
-- generating code
-- streaming terminal output
-
-They are still weak at a third thing that matters in real work:
-
-- handing off an unfinished or just-finished session cleanly
-
-RelayNote focuses on that missing layer.
-
-It does not replace your terminal, editor, or agent runtime. It runs beside
-them and continuously records:
-
-- what the session was trying to do
-- what changed
-- what evidence exists
-- what is blocked
-- what should happen next
-
-## What Problems It Solves
-
-A long coding session usually leaves behind:
-
-- a huge terminal scrollback
-- partial code changes
-- unclear status
-- unclear next steps
-
-That creates practical failures:
-
-- you cannot review progress quickly on a phone
-- a new model wastes context re-reading everything
-- a collaborator cannot safely take over
-- an overnight run ends with output, but not with a usable handoff
-
-## Core Concepts
-
-RelayNote writes a per-session artifact set:
-
-- `events.jsonl`: append-only normalized event log
-- `current_note.json`: structured machine-readable state
-- `current_note.md`: human-readable handover note
-- `resume_packet.json`: compact handoff payload for the next operator
-
-The current note answers:
-
-- What was the goal?
-- What happened recently?
-- What files changed?
-- What evidence exists?
-- Is the session blocked, completed, or ready to resume?
-- What should the next operator do?
-
-## Main Use Cases
-
-### 1. Overnight agent runs
-
-Start a coding agent before sleep, and inspect the next morning through a
-compact handover note instead of raw logs.
-
-### 2. Phone-first supervision
-
-Read progress, blockers, and next actions from a phone without opening a full
-browser IDE.
-
-### 3. Cross-model continuation
-
-Move a task from one model or tool to another without losing the working state.
-
-Examples:
-
-- Codex CLI -> Cline
-- aider -> Codex CLI
-- local machine -> remote node
-
-### 4. Human collaborator takeover
-
-Hand an unfinished session to another engineer with a compact, structured
-context packet.
-
-### 5. Failure recovery
-
-When a run fails, keep a usable recovery artifact instead of only a terminal
-transcript.
-
-## Current v0.1 Features
-
-- Watch an existing `tmux` session and refresh handover artifacts continuously
-- Wrap a command and capture output, exit status, and note state
-- Run named validation checks against an existing session
-- List sessions directly from CLI (`relaynote sessions`)
-- Read a single handover directly from CLI (`relaynote show`)
-- Run a local terminal TUI (`relaynote tui`)
-- Track session status as:
-  - `running`
-  - `waiting_for_human`
-  - `blocked`
-  - `ready_for_review`
-  - `ready_to_resume`
-  - `completed`
-  - `abandoned`
-- Attach manual annotations such as `blocker`, `note`, and `handoff`
-- Capture touched files and git diff summaries when available
-- Record named validation checks such as `test`, `build`, or `lint`
-- Export both JSON and Markdown handover views
-
-## Stage Status
-
-- Stage 1: Core handover contracts, status inference, validation evidence, and
-  baseline filesystem safety are implemented.
-- Stage 2: local-first CLI and TUI usage is implemented.
-- Stage 3: integration and security surface is implemented with TouchMux v1
-  endpoints, token auth, and origin allowlist controls.
+- Capture from an existing `tmux` session
+- Wrap a command and track execution
+- Attach checks and annotations
+- Read notes from terminal, TUI, or browser
 
 ## Quick Start
 
 ### Requirements
 
 - Node.js 22+
-- `tmux` for `watch` mode
-- `git` if you want changed-file detection
+- `tmux` (for `watch`)
+- `git` (optional, for changed-file/diff summary)
 
 ### Install and build
 
@@ -173,7 +51,7 @@ npm run build
 npm test
 ```
 
-## CLI Usage
+## Main Commands
 
 ### Watch an existing tmux session
 
@@ -184,7 +62,7 @@ node dist/cli.js watch \
   --cwd /path/to/repo
 ```
 
-### Wrap a command
+### Run a command under RelayNote
 
 ```bash
 node dist/cli.js run \
@@ -193,51 +71,31 @@ node dist/cli.js run \
   -- bash -lc "npm test"
 ```
 
-### Show the latest note
-
-```bash
-node dist/cli.js note show run-2026-03-31T00-00-00-000Z
-```
-
-### List sessions from CLI
+### List sessions
 
 ```bash
 node dist/cli.js sessions
 ```
 
-### Show one session from CLI
+### Show a note
 
 ```bash
 node dist/cli.js show run-2026-03-31T00-00-00-000Z
 ```
 
-### Export JSON
-
-```bash
-node dist/cli.js note export run-2026-03-31T00-00-00-000Z --format json
-```
-
-### Read the resume packet
+### Read resume packet
 
 ```bash
 node dist/cli.js resume run-2026-03-31T00-00-00-000Z
 ```
 
-Only print prompt text:
+Prompt only:
 
 ```bash
 node dist/cli.js resume run-2026-03-31T00-00-00-000Z --prompt-only
 ```
 
-### Add a manual blocker
-
-```bash
-node dist/cli.js annotate run-2026-03-31T00-00-00-000Z \
-  --type blocker \
-  --text "Need a human review before merge"
-```
-
-### Attach a named validation check to an existing session
+### Add validation check
 
 ```bash
 node dist/cli.js check run-2026-03-31T00-00-00-000Z \
@@ -246,13 +104,27 @@ node dist/cli.js check run-2026-03-31T00-00-00-000Z \
   -- bash -lc "npm test"
 ```
 
-### Start the built-in API and mobile reader
+### Add annotation
+
+```bash
+node dist/cli.js annotate run-2026-03-31T00-00-00-000Z \
+  --type blocker \
+  --text "Need a human review before merge"
+```
+
+### Start terminal TUI (no browser)
+
+```bash
+node dist/cli.js tui
+```
+
+### Start API + mobile web reader
 
 ```bash
 node dist/cli.js serve --host 127.0.0.1 --port 4318
 ```
 
-Recommended for integration:
+TouchMux-oriented setup:
 
 ```bash
 node dist/cli.js serve \
@@ -262,32 +134,9 @@ node dist/cli.js serve \
   --allowed-origins https://touchmux.example.com
 ```
 
-Then open:
+## Data Layout
 
-- Web reader: `http://127.0.0.1:4318/`
-- Sessions API: `http://127.0.0.1:4318/api/sessions`
-
-TouchMux-oriented endpoints:
-
-- `GET /api/touchmux/v1/sessions`
-- `GET /api/touchmux/v1/sessions/:id`
-
-### Start local TUI (no browser)
-
-```bash
-node dist/cli.js tui
-```
-
-Keybindings:
-
-- `j/k`: move selection
-- `r`: refresh
-- `y`: print current resume prompt in-message
-- `q`: quit
-
-## Output Layout
-
-By default, RelayNote writes data under:
+By default:
 
 ```text
 .relaynote/sessions/<session-id>/
@@ -298,75 +147,23 @@ By default, RelayNote writes data under:
   resume_packet.json
 ```
 
-## Architecture
+## Security Defaults
 
-RelayNote is intentionally small and composable.
+- Refuse non-loopback bind without `--token`
+- Token auth for all `/api/*` endpoints (`X-RelayNote-Token` header or `?token=...`)
+- Optional origin allowlist via `--allowed-origins`
+- Basic hardening headers on server responses
 
-### 1. Collectors
+## Minimal Architecture
 
-Collectors ingest runtime signals from sources such as:
+- Collectors: capture runtime signals from `tmux`, wrapped process, checks, annotations, and git.
+- Normalized events: append-only `events.jsonl`.
+- Reducer: deterministic status inference and handover synthesis.
+- Storage/API/UI: JSON + Markdown artifacts, CLI/TUI, and mobile web/API access.
 
-- tmux pane capture
-- wrapped process lifecycle
-- git change detection
-- manual annotations
+## Stage Status
 
-### 2. Normalized events
-
-Different signals are converted into a common event model, for example:
-
-- `session_started`
-- `output_chunk`
-- `command_started`
-- `command_finished`
-- `annotation_added`
-- `session_idle`
-- `session_stopped`
-
-### 3. Reducer
-
-A deterministic reducer turns the event stream into the current handover state.
-
-### 4. Storage
-
-RelayNote stores:
-
-- an append-only event log
-- a materialized current note
-- a resume packet for the next operator
-
-## Design Principles
-
-- Terminal-first, not IDE-first
-- Self-hosted by default
-- Deterministic core behavior before optional LLM compression
-- Human-readable and machine-readable outputs
-- Useful even when a session ends badly or unexpectedly
-
-## Not In v0.1
-
-This release is intentionally narrow.
-
-- no browser dashboard yet
-- no HTTP API yet
-- no multi-user permission system
-- no vendor-specific agent lock-in
-- no mandatory LLM summarization
-
-## Roadmap Direction
-
-The next valuable step is a read-only API and a minimal mobile reader, so tools
-such as TouchMux can consume RelayNote output without parsing internal files
-directly.
-
-See also:
-
-- [Architecture](./docs/architecture.md)
-- [Contracts](./docs/contracts.md)
-- [Security Notes](./docs/security.md)
-- [TouchMux Contract v1](./docs/touchmux_v1.md)
-- [Roadmap](./docs/roadmap.md)
-
-## License
-
-MIT
+- Stage 1 complete: handover contract, status inference, validation evidence, filesystem safety.
+- Stage 2 complete: local-first CLI and TUI workflows.
+- Stage 3 complete: integration and security surface (TouchMux v1 API, token auth, origin allowlist).
+- Stage 4 complete: quality-oriented handover intelligence (`statusReason`, `confidence`, compact summary, checklist).

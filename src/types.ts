@@ -77,6 +77,8 @@ export interface HandoverNote {
   sourceRef?: string;
   goal: string;
   status: SessionStatus;
+  statusReason: string;
+  confidence: "low" | "medium" | "high";
   startedAt: string;
   updatedAt: string;
   lastActivityAt: string;
@@ -89,17 +91,23 @@ export interface HandoverNote {
   evidence: EvidenceItem[];
   blockers: NoteBlocker[];
   nextActions: string[];
+  handoverChecklist: string[];
   risks: string[];
   resumePrompt: string;
+  compactSummary: string;
 }
 
 export interface ResumePacket {
   sessionId: string;
   goal: string;
   status: SessionStatus;
+  statusReason: string;
+  confidence: "low" | "medium" | "high";
   summary: string;
+  compactSummary: string;
   blockers: NoteBlocker[];
   nextActions: string[];
+  handoverChecklist: string[];
   touchedFiles: string[];
   diffStat?: GitDiffSummary;
   checks: NoteCheck[];

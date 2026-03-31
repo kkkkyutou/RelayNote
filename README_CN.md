@@ -2,153 +2,41 @@
 
 [English README](./README.md)
 
-RelayNote 是一个面向手机优先、自托管场景的长时编码会话交接层。
-
-它会把原始终端会话压成结构化的交接笔记和续跑包，让另一个人、另一个模型，或者未来的你，不需要重放整段 scrollback，也能继续工作。
+RelayNote 是一个自托管的会话交接层，面向长时编码任务。
+它把终端活动压缩成结构化交接产物，方便你在不重读完整日志的情况下继续任务。
 
 ## 两种使用方式
 
-RelayNote 现在同时服务两类非常接近的使用方式。
+### 1. 接入 TouchMux（快速路径）
 
-### 1. 给 TouchMux 这类工作台快速接入
+把 RelayNote 当作 TouchMux（或类似手机工作台）的本地 handover API：
 
-如果你已经有像 TouchMux 这样的远程工作台，RelayNote 可以作为背后的只读 handover 引擎。
+- `GET /api/touchmux/v1/sessions`
+- `GET /api/touchmux/v1/sessions/:id`
 
-内置 API 目前提供：
+同时也提供：
 
 - `GET /api/health`
 - `GET /api/sessions`
 - `GET /api/sessions/:id/note`
 - `GET /api/sessions/:id/resume-packet`
 
-这样接入面会比较小，也更稳定。
+### 2. 独立使用（不依赖 TouchMux）
 
-### 2. 给不需要 TouchMux 的用户直接使用
+直接用 CLI/TUI：
 
-如果你并不需要 TouchMux，RelayNote 也可以独立工作：
-
-- CLI：`watch`、`run`、`note`、`resume`、`annotate`
-- 一个很小的内置 Web 服务
-- 一个手机友好的浏览器 reader
-
-## 这个项目解决什么问题
-
-现在的大多数 AI 编码工具，通常擅长这两件事：
-
-- 帮你生成代码
-- 把终端输出不断流式推出来
-
-但它们通常不太擅长第三件真正影响实际工作的事：
-
-- 把一个没做完、或者刚做完的会话，清楚地交给下一个接手者
-
-RelayNote 就是补这层能力的。
-
-它不替代终端、编辑器或 agent runtime，而是作为旁路 sidecar，持续记录：
-
-- 这个会话想做什么
-- 最近做了什么
-- 改了哪些文件
-- 有哪些证据
-- 卡在哪
-- 下一步应该做什么
-
-## 典型痛点
-
-一个持续很久的编码会话，经常只留下这些东西：
-
-- 很长的终端滚动输出
-- 一部分已经改过的代码
-- 模糊的当前状态
-- 不清楚的下一步
-
-这会直接带来几个实际问题：
-
-- 你在手机上很难快速判断这个任务现在到底怎么样了
-- 换一个模型继续跑时，会浪费很多上下文重新理解现场
-- 交给同事接手时，对方不容易安全接班
-- 夜里跑了一晚，第二天有输出，但没有真正可用的 handoff
-
-## 核心概念
-
-RelayNote 会为每个 session 生成一组固定产物：
-
-- `events.jsonl`：追加写入的标准化事件日志
-- `current_note.json`：机器可读的当前状态
-- `current_note.md`：给人看的交接文档
-- `resume_packet.json`：给下一个操作者的最小续跑包
-
-这份交接物会回答这些核心问题：
-
-- 目标是什么？
-- 最近发生了什么？
-- 改了哪些文件？
-- 有哪些证据？
-- 当前是卡住了、做完了，还是适合续跑？
-- 下一个接手者应该先做什么？
-
-## 主要使用场景
-
-### 1. 夜间长跑
-
-睡前启动一个 coding agent，第二天早上不用看全量日志，直接看 handover note。
-
-### 2. 手机监管
-
-在手机上快速看进度、阻塞点和建议下一步，而不是打开完整浏览器 IDE。
-
-### 3. 跨模型续跑
-
-把一个任务从一个模型或工具切换到另一个模型或工具时，不丢工作状态。
-
-例子：
-
-- Codex CLI -> Cline
-- aider -> Codex CLI
-- 本机 -> 远程节点
-
-### 4. 人类协作者接手
-
-把一个没做完的 session 交给另一个工程师时，提供紧凑、结构化的上下文包。
-
-### 5. 失败恢复
-
-任务失败后，留下的是可恢复工单，而不只是原始终端转录。
-
-## 当前 v0.1 已实现的能力
-
-- 监听已有 `tmux` session，并持续刷新交接产物
-- 包装一个命令运行，记录输出、退出码和当前状态
-- 对已有 session 附加命名 validation check
-- 直接在 CLI 列出会话（`relaynote sessions`）
-- 直接在 CLI 查看单个会话（`relaynote show`）
-- 本地终端 TUI（`relaynote tui`）
-- 用状态机表示会话状态：
-  - `running`
-  - `waiting_for_human`
-  - `blocked`
-  - `ready_for_review`
-  - `ready_to_resume`
-  - `completed`
-  - `abandoned`
-- 支持人工加注释，例如 `blocker`、`note`、`handoff`
-- 在 git 可用时记录改动文件和 diff 摘要
-- 记录命名 validation checks，例如 `test`、`build`、`lint`
-- 同时导出 JSON 和 Markdown 两种交接视图
-
-## 阶段状态
-
-- 阶段一：核心 handover contract、状态推断、validation evidence，以及基础文件系统安全边界已经完成。
-- 阶段二：本地优先 CLI / TUI 使用体验已经实现。
-- 阶段三：集成与安全边界已经落地，包含 TouchMux v1 接口、token 认证和 origin allowlist。
+- 监听现有 `tmux` 会话
+- 包装命令执行并持续记录
+- 添加检查项和人工注释
+- 在终端、TUI、手机网页读取交接信息
 
 ## 快速开始
 
 ### 依赖
 
 - Node.js 22+
-- `tmux`，用于 `watch` 模式
-- `git`，如果你希望启用改动文件检测
+- `tmux`（用于 `watch`）
+- `git`（可选，用于改动文件和 diff 摘要）
 
 ### 安装与构建
 
@@ -157,15 +45,15 @@ npm install
 npm run build
 ```
 
-### 运行测试
+### 测试
 
 ```bash
 npm test
 ```
 
-## CLI 用法
+## 常用命令
 
-### 监听一个现有 tmux session
+### 监听 tmux 会话
 
 ```bash
 node dist/cli.js watch \
@@ -174,7 +62,7 @@ node dist/cli.js watch \
   --cwd /path/to/repo
 ```
 
-### 包装一个命令
+### 包装命令执行
 
 ```bash
 node dist/cli.js run \
@@ -183,51 +71,31 @@ node dist/cli.js run \
   -- bash -lc "npm test"
 ```
 
-### 查看当前 note
-
-```bash
-node dist/cli.js note show run-2026-03-31T00-00-00-000Z
-```
-
-### 直接在 CLI 列出会话
+### 列出会话
 
 ```bash
 node dist/cli.js sessions
 ```
 
-### 直接在 CLI 查看单个会话
+### 查看会话 note
 
 ```bash
 node dist/cli.js show run-2026-03-31T00-00-00-000Z
 ```
 
-### 导出 JSON
-
-```bash
-node dist/cli.js note export run-2026-03-31T00-00-00-000Z --format json
-```
-
-### 读取 resume packet
+### 查看 resume packet
 
 ```bash
 node dist/cli.js resume run-2026-03-31T00-00-00-000Z
 ```
 
-只输出 resume prompt 文本：
+只输出 prompt：
 
 ```bash
 node dist/cli.js resume run-2026-03-31T00-00-00-000Z --prompt-only
 ```
 
-### 手工加入 blocker
-
-```bash
-node dist/cli.js annotate run-2026-03-31T00-00-00-000Z \
-  --type blocker \
-  --text "Need a human review before merge"
-```
-
-### 给已有 session 附加一个命名 validation check
+### 给会话附加检查项
 
 ```bash
 node dist/cli.js check run-2026-03-31T00-00-00-000Z \
@@ -236,13 +104,27 @@ node dist/cli.js check run-2026-03-31T00-00-00-000Z \
   -- bash -lc "npm test"
 ```
 
-### 启动内置 API 和手机 Reader
+### 给会话附加注释
+
+```bash
+node dist/cli.js annotate run-2026-03-31T00-00-00-000Z \
+  --type blocker \
+  --text "Need a human review before merge"
+```
+
+### 启动终端 TUI（不打开网页）
+
+```bash
+node dist/cli.js tui
+```
+
+### 启动 API + 手机网页 Reader
 
 ```bash
 node dist/cli.js serve --host 127.0.0.1 --port 4318
 ```
 
-推荐用于集成场景：
+TouchMux 接入推荐：
 
 ```bash
 node dist/cli.js serve \
@@ -252,32 +134,9 @@ node dist/cli.js serve \
   --allowed-origins https://touchmux.example.com
 ```
 
-然后打开：
+## 数据目录
 
-- Web reader：`http://127.0.0.1:4318/`
-- Sessions API：`http://127.0.0.1:4318/api/sessions`
-
-面向 TouchMux 的接口：
-
-- `GET /api/touchmux/v1/sessions`
-- `GET /api/touchmux/v1/sessions/:id`
-
-### 启动本地终端 TUI（不需要浏览器）
-
-```bash
-node dist/cli.js tui
-```
-
-快捷键：
-
-- `j/k`：移动选中项
-- `r`：刷新
-- `y`：在界面消息区打印当前 resume prompt
-- `q`：退出
-
-## 输出目录结构
-
-默认情况下，RelayNote 会把数据写到：
+默认输出：
 
 ```text
 .relaynote/sessions/<session-id>/
@@ -288,73 +147,23 @@ node dist/cli.js tui
   resume_packet.json
 ```
 
-## 技术架构
+## 安全默认策略
 
-RelayNote 整体保持得很小，也尽量可组合。
+- 非 loopback 地址启动服务时，必须带 `--token`
+- `/api/*` 全部支持 token 鉴权（`X-RelayNote-Token` 或 `?token=...`）
+- 可用 `--allowed-origins` 配置来源白名单
+- 服务端响应带基础安全头
 
-### 1. Collectors
+## 简要架构
 
-从不同来源采集运行信号，例如：
+- Collectors：采集 tmux、包装进程、检查项、注释、git 信号
+- 统一事件流：追加写入 `events.jsonl`
+- Reducer：确定性状态推断与交接信息归约
+- Storage/API/UI：JSON/Markdown 产物 + CLI/TUI + 手机网页/API
 
-- tmux pane 抓取
-- 包装进程的生命周期
-- git 改动检测
-- 人工注释
+## 阶段状态
 
-### 2. 标准化事件
-
-把不同来源的信号压成统一事件模型，例如：
-
-- `session_started`
-- `output_chunk`
-- `command_started`
-- `command_finished`
-- `annotation_added`
-- `session_idle`
-- `session_stopped`
-
-### 3. Reducer
-
-用确定性的 reducer，把事件流归约成当前 handover state。
-
-### 4. Storage
-
-RelayNote 会保存：
-
-- 追加写入的事件日志
-- 当前物化状态
-- 给下一个接手者的续跑包
-
-## 设计原则
-
-- 终端优先，而不是 IDE 优先
-- 自托管优先
-- 先保证确定性核心行为，再考虑可选的 LLM 压缩
-- 同时照顾人类可读和机器可读
-- 即使 session 异常结束，也要留下有价值的交接物
-
-## v0.1 暂时不做
-
-这个版本刻意收得很窄。
-
-- 还没有浏览器 dashboard
-- 还没有 HTTP API
-- 还没有多用户权限系统
-- 不绑定某一家厂商的 agent
-- 不强依赖 LLM 总结
-
-## 下一步方向
-
-v0.1 之后最值得做的是只读 API 和最小手机 reader，这样像 TouchMux 这样的工具就可以直接消费 RelayNote 的输出，而不需要自己解析内部文件。
-
-更多说明：
-
-- [技术架构](./docs/architecture.md)
-- [Contracts](./docs/contracts.md)
-- [安全说明](./docs/security.md)
-- [TouchMux 合同 v1](./docs/touchmux_v1.md)
-- [Roadmap](./docs/roadmap.md)
-
-## License
-
-MIT
+- 阶段一已完成：handover contract、状态推断、validation evidence、基础文件系统安全。
+- 阶段二已完成：本地优先 CLI/TUI 流程。
+- 阶段三已完成：集成与安全面（TouchMux v1 API、token 鉴权、origin allowlist）。
+- 阶段四已完成：质量导向交接能力（`statusReason`、`confidence`、compact summary、handover checklist）。

@@ -25,6 +25,8 @@ test("listSessionSnapshots returns newest sessions first", async () => {
     sourceRef: "older",
     goal: "Older goal",
     status: "completed",
+    statusReason: "Session stopped without unresolved blockers.",
+    confidence: "medium",
     startedAt: metadataA.createdAt,
     updatedAt: "2026-03-31T00:01:00.000Z",
     lastActivityAt: "2026-03-31T00:01:00.000Z",
@@ -36,8 +38,10 @@ test("listSessionSnapshots returns newest sessions first", async () => {
     evidence: [],
     blockers: [],
     nextActions: [],
+    handoverChecklist: ["Archive the session note or attach it to the final task record."],
     risks: [],
     resumePrompt: "resume older",
+    compactSummary: "COMPLETED | goal=Older goal | reason=Session stopped without unresolved blockers.",
   };
 
   const metadataB: SessionMetadata = {
@@ -56,6 +60,8 @@ test("listSessionSnapshots returns newest sessions first", async () => {
     sourceRef: "tmux:b",
     goal: "Newer goal",
     status: "ready_to_resume",
+    statusReason: "An explicit handoff was requested.",
+    confidence: "medium",
     startedAt: metadataB.createdAt,
     updatedAt: "2026-03-31T00:02:00.000Z",
     lastActivityAt: "2026-03-31T00:02:00.000Z",
@@ -67,8 +73,10 @@ test("listSessionSnapshots returns newest sessions first", async () => {
     evidence: [],
     blockers: [{ ts: "2026-03-31T00:02:00.000Z", label: "Need review" }],
     nextActions: [],
+    handoverChecklist: ["Start a fresh execution session from resume prompt."],
     risks: [],
     resumePrompt: "resume newer",
+    compactSummary: "READY_TO_RESUME | goal=Newer goal | reason=An explicit handoff was requested.",
   };
 
   await writeMetadata(root, metadataA);
