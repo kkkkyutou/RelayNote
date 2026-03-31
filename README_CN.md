@@ -120,6 +120,9 @@ RelayNote 会为每个 session 生成一组固定产物：
 - 监听已有 `tmux` session，并持续刷新交接产物
 - 包装一个命令运行，记录输出、退出码和当前状态
 - 对已有 session 附加命名 validation check
+- 直接在 CLI 列出会话（`relaynote sessions`）
+- 直接在 CLI 查看单个会话（`relaynote show`）
+- 本地终端 TUI（`relaynote tui`）
 - 用状态机表示会话状态：
   - `running`
   - `waiting_for_human`
@@ -136,7 +139,7 @@ RelayNote 会为每个 session 生成一组固定产物：
 ## 阶段状态
 
 - 阶段一：核心 handover contract、状态推断、validation evidence，以及基础文件系统安全边界已经完成。
-- 阶段二：接下来会补本地优先的 CLI / TUI 使用体验。
+- 阶段二：本地优先 CLI / TUI 使用体验已经实现。
 - 阶段三：再继续把集成接口和 TouchMux 接入面做稳。
 
 ## 快速开始
@@ -186,6 +189,18 @@ node dist/cli.js run \
 node dist/cli.js note show run-2026-03-31T00-00-00-000Z
 ```
 
+### 直接在 CLI 列出会话
+
+```bash
+node dist/cli.js sessions
+```
+
+### 直接在 CLI 查看单个会话
+
+```bash
+node dist/cli.js show run-2026-03-31T00-00-00-000Z
+```
+
 ### 导出 JSON
 
 ```bash
@@ -196,6 +211,12 @@ node dist/cli.js note export run-2026-03-31T00-00-00-000Z --format json
 
 ```bash
 node dist/cli.js resume run-2026-03-31T00-00-00-000Z
+```
+
+只输出 resume prompt 文本：
+
+```bash
+node dist/cli.js resume run-2026-03-31T00-00-00-000Z --prompt-only
 ```
 
 ### 手工加入 blocker
@@ -225,6 +246,19 @@ node dist/cli.js serve --host 127.0.0.1 --port 4318
 
 - Web reader：`http://127.0.0.1:4318/`
 - Sessions API：`http://127.0.0.1:4318/api/sessions`
+
+### 启动本地终端 TUI（不需要浏览器）
+
+```bash
+node dist/cli.js tui
+```
+
+快捷键：
+
+- `j/k`：移动选中项
+- `r`：刷新
+- `y`：在界面消息区打印当前 resume prompt
+- `q`：退出
 
 ## 输出目录结构
 

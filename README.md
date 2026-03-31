@@ -128,6 +128,9 @@ transcript.
 - Watch an existing `tmux` session and refresh handover artifacts continuously
 - Wrap a command and capture output, exit status, and note state
 - Run named validation checks against an existing session
+- List sessions directly from CLI (`relaynote sessions`)
+- Read a single handover directly from CLI (`relaynote show`)
+- Run a local terminal TUI (`relaynote tui`)
 - Track session status as:
   - `running`
   - `waiting_for_human`
@@ -145,7 +148,7 @@ transcript.
 
 - Stage 1: Core handover contracts, status inference, validation evidence, and
   baseline filesystem safety are implemented.
-- Stage 2: local-first CLI and TUI improvements are next.
+- Stage 2: local-first CLI and TUI usage is implemented.
 - Stage 3: stronger integration surfaces and TouchMux-oriented contracts come
   after that.
 
@@ -196,6 +199,18 @@ node dist/cli.js run \
 node dist/cli.js note show run-2026-03-31T00-00-00-000Z
 ```
 
+### List sessions from CLI
+
+```bash
+node dist/cli.js sessions
+```
+
+### Show one session from CLI
+
+```bash
+node dist/cli.js show run-2026-03-31T00-00-00-000Z
+```
+
 ### Export JSON
 
 ```bash
@@ -206,6 +221,12 @@ node dist/cli.js note export run-2026-03-31T00-00-00-000Z --format json
 
 ```bash
 node dist/cli.js resume run-2026-03-31T00-00-00-000Z
+```
+
+Only print prompt text:
+
+```bash
+node dist/cli.js resume run-2026-03-31T00-00-00-000Z --prompt-only
 ```
 
 ### Add a manual blocker
@@ -235,6 +256,19 @@ Then open:
 
 - Web reader: `http://127.0.0.1:4318/`
 - Sessions API: `http://127.0.0.1:4318/api/sessions`
+
+### Start local TUI (no browser)
+
+```bash
+node dist/cli.js tui
+```
+
+Keybindings:
+
+- `j/k`: move selection
+- `r`: refresh
+- `y`: print current resume prompt in-message
+- `q`: quit
 
 ## Output Layout
 

@@ -2,10 +2,16 @@
 import path from "node:path";
 import process from "node:process";
 import { readFile } from "node:fs/promises";
-import { readNote, readNoteMarkdown, readResumePacket } from "./storage.js";
+import {
+  listSessionSnapshots,
+  readNote,
+  readNoteMarkdown,
+  readResumePacket,
+} from "./storage.js";
 import { deriveWorkingDirectory, emitEvent } from "./session.js";
 import { runCommandWithRelayNote, runValidationCheck } from "./run.js";
 import { startServer } from "./server.js";
+import { startTui } from "./tui.js";
 import { watchTmuxSession } from "./watch.js";
 import { resolveDataRoot } from "./utils.js";
 
@@ -67,12 +73,15 @@ function printUsage(): void {
 Usage:
   relaynote watch --tmux <session> --goal <text> [--cwd <dir>] [--data-root <dir>] [--interval-ms <n>]
   relaynote run --goal <text> [--cwd <dir>] [--data-root <dir>] -- <command...>
+  relaynote sessions [--json] [--data-root <dir>]
+  relaynote show <session-id> [--json] [--data-root <dir>]
   relaynote note show <session-id> [--json] [--data-root <dir>]
   relaynote note export <session-id> --format json|md [--output <file>] [--data-root <dir>]
-  relaynote resume <session-id> [--data-root <dir>]
+  relaynote resume <session-id> [--prompt-only] [--data-root <dir>]
   relaynote check <session-id> --name <check-name> [--cwd <dir>] [--data-root <dir>] -- <command...>
   relaynote annotate <session-id> --type blocker|note|handoff --text <text> [--data-root <dir>]
   relaynote serve [--host <host>] [--port <port>] [--data-root <dir>]
+  relaynote tui [--data-root <dir>]
 `);
 }
 
@@ -118,6 +127,34 @@ async function main(): Promise<void> {
     process.exit(exitCode);
   }
 
+  if (command === "sessions") {
+    const sessions = await listSessionSnapshots(dataRoot);
+    if (parsed.flags.get("json")) {
+      console.log(JSON.stringify(sessions, null, 2));
+      return;
+    }
+    if (sessions.length === 0) {
+      console.log("No sessions found.");
+      return;
+    }
+    for (const session of sessions) {
+      console.log(
+        `${session.sessionId}\n  ${session.status} | ${session.runtime} | checks:${session.checksCount} blockers:${session.blockersCount}\n  ${session.goal}\n  ${session.updatedAt}\n`,
+      );
+    }
+    return;
+  }
+
+  if (command === "show" && subcommand) {
+    const note = await readNote(dataRoot, subcommand);
+    if (parsed.flags.get("json")) {
+      console.log(JSON.stringify(note, null, 2));
+      return;
+    }
+    process.stdout.write(await readNoteMarkdown(dataRoot, subcommand));
+    return;
+  }
+
   if (command === "note" && subcommand === "show" && maybeSessionId) {
     const note = await readNote(dataRoot, maybeSessionId);
     if (parsed.flags.get("json")) {
@@ -143,6 +180,10 @@ async function main(): Promise<void> {
 
   if (command === "resume" && subcommand) {
     const packet = await readResumePacket(dataRoot, subcommand);
+    if (parsed.flags.get("prompt-only")) {
+      process.stdout.write(`${packet.resumePrompt}\n`);
+      return;
+    }
     console.log(JSON.stringify(packet, null, 2));
     return;
   }
@@ -173,6 +214,11 @@ async function main(): Promise<void> {
       host: getOptionalFlag(parsed, "host") ?? "127.0.0.1",
       port: Number(getOptionalFlag(parsed, "port") ?? "4318"),
     });
+    return;
+  }
+
+  if (command === "tui") {
+    await startTui(dataRoot);
     return;
   }
 
